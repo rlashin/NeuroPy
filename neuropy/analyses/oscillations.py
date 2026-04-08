@@ -47,6 +47,7 @@ def _detect_freq_band_epochs(
     sigma,
     ignore_times=None,
     return_power=False,
+    custom_z_params=None,
 ):
     """Detects epochs of high power in a given frequency band
 
@@ -59,6 +60,9 @@ def _detect_freq_band_epochs(
     maxdur : float, optional
     chans : list
         channels used for epoch detection, if None then chooses best chans
+    custom_z_params: list, tuple, np.ndarray
+        (mean, std) to use for z-scoring power. Useful for across session comparisons
+
     """
 
     # lf, hf = freq_band
@@ -70,18 +74,8 @@ def _detect_freq_band_epochs(
     # mean: very conservative in cases where some shanks may not have that strong ripple
     # max: works well but may have occasional false positives
 
-    # # First, bandpass the signal in the range of interest
-    # power = np.zeros(signals.shape[1])
-    # for sig in signals:
-    #     yf = signal_process.filter_sig.bandpass(sig, lf=lf, hf=hf, fs=fs)
-    #     # zsc_chan = smooth(stats.zscore(np.abs(signal_process.hilbertfast(yf))))
-    #     # zscsignal[sig_i] = zsc_chan
-    #     power += np.abs(signal_process.hilbertfast(yf))
-    #
-    # # Second, take the mean and smooth the signal with a sigma wide gaussian kernel
-    # power = smooth(power / signals.shape[0])
-
-    # First get bandpass power, and second, smooth it
+    # First get bandpass power, and ...
+    # Second, smooth it
     power = get_bandpass_power(signals, freq_band, fs, sigma)
 
     # Third, exclude any noisy periods due to motion or other artifact
@@ -102,9 +96,13 @@ def _detect_freq_band_epochs(
     # Fourth, identify candidate epochs above edge_cutoff threshold
     # ---- thresholding and detection ------
     power_abs = deepcopy(power)  # keep copy of absolute power before z-scoring to compare between sessions
-    power = stats.zscore(power)
-    # power_thresh = np.where(power >= edge_cutoff, power, 0)
-    power_thresh = np.where(power >= edge_cutoff, power, -100)  # NRK bugfix
+    print(f"Power mean={power_abs[power_abs != 0].mean()} and std={power_abs[power_abs != 0].std()}")
+    if custom_z_params is None:
+        power = stats.zscore(power)
+    else:
+        mu_custom, sigma_custom = custom_z_params
+        power = (power - mu_custom) / sigma_custom
+    power_thresh = np.where(power >= edge_cutoff, power, -100)
 
     # Fifth, refine candidate epochs to periods between lowthresh and highthresh
     peaks, props = sg.find_peaks(
