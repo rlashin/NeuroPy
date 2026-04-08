@@ -155,7 +155,8 @@ class NeuroscopeIO:
             "eeg_sampling_rate": self.eeg_sampling_rate,
         }
 
-    def event_to_epochs(self, evt_file, label=""):
+    @staticmethod
+    def event_to_epochs(evt_file, label=""):
         """Read in an event file and convert to an epochs object"""
         with open(evt_file, "r") as f:
             Lines = f.readlines()
